@@ -23,7 +23,7 @@ def get_tac_price():
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Привет! Я бот цены $TAC. Отправляю обновления каждую минуту.\nТвой chat_id: " + str(update.message.chat_id))
+    await update.message.reply_text(f"Привет! Я бот цены $TAC. Отправляю обновления каждую минуту.\nТвой chat_id: {update.message.chat_id}")
 
 # Команда /price
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -33,8 +33,8 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "YOUR_CHAT_ID"  # Вставь chat_id в кавычках
-    await context.bot.send_message(chat_id=chat_id, text=price_message)
+    chat_id = "YOUR_CHAT_ID"  # Вставь chat_id в кавычках (например, "-1001234567890")
+    await context.bot.send_message(chat_id=int(chat_id), text=price_message)  # chat_id как int
 
 def main() -> None:
     # Токен бота
