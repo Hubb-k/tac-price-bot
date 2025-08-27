@@ -38,7 +38,7 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     # Вставь свой токен бота
-    application = Application.builder().token(7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E).build()
+    application = Application.builder().token("7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E").build()
 
     # Обработчики команд
     application.add_handler(CommandHandler("start", start))
