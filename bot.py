@@ -33,11 +33,11 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "YOUR_CHAT_ID"  # Вставь сюда chat_id
+    chat_id = "YOUR_CHAT_ID"  # Вставь chat_id в кавычках
     await context.bot.send_message(chat_id=chat_id, text=price_message)
 
 def main() -> None:
-    # Вставь свой токен бота
+    # Токен бота
     application = Application.builder().token("7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E").build()
 
     # Обработчики команд
