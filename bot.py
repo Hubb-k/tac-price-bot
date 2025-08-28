@@ -114,7 +114,7 @@ async def main():
     if application.job_queue is None:
         logger.error("Error: job_queue is None")
         return
-    application.job_queue.run_repeating(send_price_update, interval=60, first=0)
+    application.job_queue.run_repeating(send_price_update, interval=180, first=0)
     # Запускаем WSGI в отдельном потоке
     wsgi_thread = Thread(target=run_wsgi, daemon=True)
     wsgi_thread.start()
