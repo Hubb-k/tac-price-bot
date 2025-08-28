@@ -43,35 +43,37 @@ def get_tac_price():
             ton_price = rates.get('TON', 'N/A')
             usd_str = f"{float(usd_price):.4f}" if usd_price != 'N/A' else 'N/A'
             ton_str = f"{float(ton_price):.4f}" if ton_price != 'N/A' else 'N/A'
-            return f"$TAC Price:\nUSD: ${usd_str}\nTON: {ton_str} TON"
+            # Форматирование с Markdown и эмодзи
+            return f"**$TAC Price** 📊\n💰 **USD**: ${usd_str}\n💎 **TON**: {ton_str} TON"
         else:
-            error_msg = f"Ошибка TonAPI: Код {response.status_code}"
+            error_msg = f"**Ошибка TonAPI**: Код {response.status_code} ⚠️"
             logger.error(error_msg)
             return error_msg
     except Exception as e:
-        error_msg = f"Ошибка в get_tac_price: {str(e)}"
+        error_msg = f"**Ошибка**: {str(e)} ⚠️"
         logger.error(error_msg)
         return error_msg
 
 # Команда /start с кнопками
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton("Получить цену", callback_data="price")],
-        [InlineKeyboardButton("Помощь", callback_data="help")]
+        [InlineKeyboardButton("Получить цену 📊", callback_data="price")],
+        [InlineKeyboardButton("Помощь ❓", callback_data="help")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"Привет! Я бот цены $TAC. Нажми кнопку ниже:\nТвой chat_id: {update.message.chat_id}",
-        reply_markup=reply_markup
+        f"**Привет!** 👋 Я бот цены **$TAC**. Нажми кнопку ниже:\n*Твой chat_id*: `{update.message.chat_id}`",
+        reply_markup=reply_markup,
+        parse_mode="MarkdownV2"
     )
 
 # Команда /price
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
     logger.info(f"Sending price to {update.message.chat_id}: {price_message}")
-    keyboard = [[InlineKeyboardButton("Обновить цену", callback_data="price")]]
+    keyboard = [[InlineKeyboardButton("Обновить цену 🔄", callback_data="price")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(price_message, reply_markup=reply_markup)
+    await update.message.reply_text(price_message, reply_markup=reply_markup, parse_mode="MarkdownV2")
 
 # Обработчик кнопок
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -80,11 +82,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if query.data == "price":
         price_message = get_tac_price()
         logger.info(f"Sending price to {query.message.chat_id}: {price_message}")
-        keyboard = [[InlineKeyboardButton("Обновить цену", callback_data="price")]]
+        keyboard = [[InlineKeyboardButton("Обновить цену 🔄", callback_data="price")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.message.reply_text(price_message, reply_markup=reply_markup)
+        await query.message.reply_text(price_message, reply_markup=reply_markup, parse_mode="MarkdownV2")
     elif query.data == "help":
-        await query.message.reply_text("Я бот для отслеживания цены $TAC. Используй /price или кнопку 'Получить цену'.")
+        await query.message.reply_text(
+            "**Я бот для отслеживания цены $TAC** 📈\nИспользуй /price или кнопку 'Получить цену'.",
+            parse_mode="MarkdownV2"
+        )
 
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -92,7 +97,7 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = "-1002954606074"  # Твой chat_id канала
     logger.info(f"Sending auto-update to {chat_id}: {price_message}")
     try:
-        await context.bot.send_message(chat_id=int(chat_id), text=price_message)
+        await context.bot.send_message(chat_id=int(chat_id), text=price_message, parse_mode="MarkdownV2")
     except Exception as e:
         logger.error(f"Ошибка в send_price_update: {str(e)}")
 
