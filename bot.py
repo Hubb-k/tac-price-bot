@@ -97,9 +97,11 @@ def run_wsgi():
     server = make_server('0.0.0.0', port, simple_wsgi_app)
     server.serve_forever()
 
-async def main() -> None:
+async def main():
     print(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
     application = Application.builder().token("7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E").build()
+    # Инициализируем приложение
+    await application.initialize()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("price", price))
     application.add_handler(CallbackQueryHandler(button))
@@ -111,10 +113,12 @@ async def main() -> None:
     # Запускаем WSGI в отдельном потоке
     wsgi_thread = Thread(target=run_wsgi, daemon=True)
     wsgi_thread.start()
-    await application.run_polling()
-    # Останавливаем приложение перед выходом
-    await application.stop()
-    await application.bot.session.close()
+    try:
+        await application.run_polling()
+    finally:
+        # Корректно завершаем приложение
+        await application.stop()
+        await application.bot.session.close()
 
 if __name__ == "__main__":
     try:
