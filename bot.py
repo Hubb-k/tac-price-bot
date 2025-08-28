@@ -33,7 +33,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "@tacprice"
+    chat_id = "224780379"
     await context.bot.send_message(chat_id=int(chat_id), text=price_message)
 
 def main() -> None:
