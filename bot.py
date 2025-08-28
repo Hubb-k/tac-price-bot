@@ -22,8 +22,8 @@ def get_tac_price():
             rates = data['rates'][JETTON_ADDRESS]['prices']
             usd_price = rates.get('USD', 'N/A')
             ton_price = rates.get('TON', 'N/A')
-            usd_str = f"{float(usd_price):.3f}" if usd_price != 'N/A' else 'N/A'
-            ton_str = f"{float(ton_price):.3f}" if ton_price != 'N/A' else 'N/A'
+            usd_str = f"{float(usd_price):.4f}" if usd_price != 'N/A' else 'N/A'
+            ton_str = f"{float(ton_price):.4f}" if ton_price != 'N/A' else 'N/A'
             return f"$TAC Price:\nUSD: ${usd_str}\nTON: {ton_str} TON"
         else:
             error_msg = f"Ошибка TonAPI: Код {response.status_code}"
