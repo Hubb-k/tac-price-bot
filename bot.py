@@ -1,12 +1,13 @@
 import sys
 import os
 import requests
+import asyncio
 from threading import Thread
+from wsgiref.simple_server import make_server
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from wsgiref.simple_server import make_server
 
-# Создаём простой WSGI-эндпоинт для Render
+# Простой WSGI-эндпоинт для Render
 def simple_wsgi_app(environ, start_response):
     status = '200 OK'
     headers = [('Content-type', 'text/plain; charset=utf-8')]
@@ -92,9 +93,9 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def run_wsgi():
     port = int(os.getenv("PORT", 8080))
-    with make_server('0.0.0.0', port, simple_wsgi_app) as server:
-        print(f"Starting WSGI server on port {port}")
-        server.serve_forever()
+    print(f"Starting WSGI server on port {port}")
+    server = make_server('0.0.0.0', port, simple_wsgi_app)
+    server.serve_forever()
 
 async def main() -> None:
     print(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
@@ -108,10 +109,17 @@ async def main() -> None:
         return
     application.job_queue.run_repeating(send_price_update, interval=60, first=0)
     # Запускаем WSGI в отдельном потоке
-    wsgi_thread = Thread(target=run_wsgi)
+    wsgi_thread = Thread(target=run_wsgi, daemon=True)
     wsgi_thread.start()
     await application.run_polling()
+    # Останавливаем приложение перед выходом
+    await application.stop()
+    await application.bot.session.close()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        print(f"RuntimeError in main: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
