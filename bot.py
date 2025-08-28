@@ -43,6 +43,9 @@ def get_tac_price():
             ton_price = rates.get('TON', 'N/A')
             usd_str = f"{float(usd_price):.4f}" if usd_price != 'N/A' else 'N/A'
             ton_str = f"{float(ton_price):.4f}" if ton_price != 'N/A' else 'N/A'
+            # Экранируем точки для MarkdownV2
+            usd_str = usd_str.replace('.', r'\.') if usd_price != 'N/A' else 'N/A'
+            ton_str = ton_str.replace('.', r'\.') if ton_price != 'N/A' else 'N/A'
             # Форматирование с Markdown и эмодзи
             return f"**$TAC Price** 📊\n💰 **USD**: ${usd_str}\n💎 **TON**: {ton_str} TON"
         else:
@@ -50,7 +53,7 @@ def get_tac_price():
             logger.error(error_msg)
             return error_msg
     except Exception as e:
-        error_msg = f"**Ошибка**: {str(e)} ⚠️"
+        error_msg = f"**Ошибка**: {str(e).replace('.', r'\.')} ⚠️"
         logger.error(error_msg)
         return error_msg
 
