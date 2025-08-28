@@ -1,17 +1,17 @@
 import sys
 import os
 import requests
-from flask import Flask
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from wsgiref.simple_server import make_server
 
-app = Flask(__name__)
-
-# HTTP-эндпоинт для Render
-@app.route('/health')
-def health():
-    return "Bot is running", 200
+# Создаём простой WSGI-эндпоинт для Render
+def simple_wsgi_app(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'text/plain; charset=utf-8')]
+    start_response(status, headers)
+    return [b"Bot is running"]
 
 # Адрес Jetton-контракта $TAC
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
@@ -90,8 +90,11 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         print(f"Ошибка в send_price_update: {str(e)}")
 
-def run_flask():
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+def run_wsgi():
+    port = int(os.getenv("PORT", 8080))
+    with make_server('0.0.0.0', port, simple_wsgi_app) as server:
+        print(f"Starting WSGI server on port {port}")
+        server.serve_forever()
 
 async def main() -> None:
     print(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
@@ -104,9 +107,9 @@ async def main() -> None:
         print("Error: job_queue is None")
         return
     application.job_queue.run_repeating(send_price_update, interval=60, first=0)
-    # Запускаем Flask в отдельном потоке
-    flask_thread = Thread(target=run_flask)
-    flask_thread.start()
+    # Запускаем WSGI в отдельном потоке
+    wsgi_thread = Thread(target=run_wsgi)
+    wsgi_thread.start()
     await application.run_polling()
 
 if __name__ == "__main__":
