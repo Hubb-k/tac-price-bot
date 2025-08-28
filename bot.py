@@ -1,8 +1,17 @@
 import sys
 import os
 import requests
+from flask import Flask
+from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
+app = Flask(__name__)
+
+# HTTP-эндпоинт для Render
+@app.route('/health')
+def health():
+    return "Bot is running", 200
 
 # Адрес Jetton-контракта $TAC
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
@@ -11,8 +20,12 @@ JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
 def get_tac_price():
     url = f"https://tonapi.io/v2/rates?tokens={JETTON_ADDRESS}&currencies=ton,usd"
     headers = {}
-    if os.getenv("TONAPI_KEY"):
-        headers["Authorization"] = f"Bearer {os.getenv('TONAPI_KEY')}"
+    tonapi_key = os.getenv("TONAPI_KEY")
+    if tonapi_key:
+        headers["Authorization"] = f"Bearer {tonapi_key}"
+        print(f"Using TONAPI_KEY: {tonapi_key[:5]}...")
+    else:
+        print("TONAPI_KEY not set")
     try:
         response = requests.get(url, headers=headers)
         print(f"TonAPI response status: {response.status_code}")
@@ -70,12 +83,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "-1002954606074"  # Твой chat_id
+    chat_id = "-1002954606074"  # Замени на твой chat_id канала
     print(f"Sending auto-update to {chat_id}: {price_message}")
     try:
         await context.bot.send_message(chat_id=int(chat_id), text=price_message)
     except Exception as e:
         print(f"Ошибка в send_price_update: {str(e)}")
+
+def run_flask():
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
 
 def main() -> None:
     print(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
@@ -84,6 +100,9 @@ def main() -> None:
     application.add_handler(CommandHandler("price", price))
     application.add_handler(CallbackQueryHandler(button))
     application.job_queue.run_repeating(send_price_update, interval=60, first=0)
+    # Запускаем Flask в отдельном потоке
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
     application.run_polling()
 
 if __name__ == "__main__":
