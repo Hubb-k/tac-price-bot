@@ -83,7 +83,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "-1002954606074"  # Замени на твой chat_id канала
+    chat_id = "-1002954606074"  # Твой chat_id канала
     print(f"Sending auto-update to {chat_id}: {price_message}")
     try:
         await context.bot.send_message(chat_id=int(chat_id), text=price_message)
@@ -93,17 +93,22 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
 def run_flask():
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
 
-def main() -> None:
+async def main() -> None:
     print(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
     application = Application.builder().token("7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E").build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("price", price))
     application.add_handler(CallbackQueryHandler(button))
+    # Проверяем, что job_queue доступен
+    if application.job_queue is None:
+        print("Error: job_queue is None")
+        return
     application.job_queue.run_repeating(send_price_update, interval=60, first=0)
     # Запускаем Flask в отдельном потоке
     flask_thread = Thread(target=run_flask)
     flask_thread.start()
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
