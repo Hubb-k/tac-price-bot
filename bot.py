@@ -115,11 +115,15 @@ async def main():
     wsgi_thread.start()
     # Запускаем polling
     try:
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+        # Держим приложение активным
+        await asyncio.Event().wait()  # Бесконечное ожидание
     except Exception as e:
         print(f"Error in run_polling: {str(e)}")
     finally:
         # Корректно завершаем приложение
+        await application.updater.stop()
         await application.stop()
         await application.shutdown()
 
