@@ -113,17 +113,18 @@ async def main():
     # Запускаем WSGI в отдельном потоке
     wsgi_thread = Thread(target=run_wsgi, daemon=True)
     wsgi_thread.start()
+    # Запускаем polling
     try:
-        await application.run_polling()
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        print(f"Error in run_polling: {str(e)}")
     finally:
         # Корректно завершаем приложение
         await application.stop()
-        await application.bot.session.close()
+        await application.shutdown()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except RuntimeError as e:
-        print(f"RuntimeError in main: {str(e)}")
     except Exception as e:
-        print(f"Unexpected error: {str(e)}")
+        print(f"Error in main: {str(e)}")
