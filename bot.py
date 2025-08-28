@@ -70,7 +70,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Автоматическое обновление цены
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_message = get_tac_price()
-    chat_id = "224780379"  # Твой chat_id
+    chat_id = "-1002954606074"  # Твой chat_id
     print(f"Sending auto-update to {chat_id}: {price_message}")
     try:
         await context.bot.send_message(chat_id=int(chat_id), text=price_message)
