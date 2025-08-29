@@ -3,10 +3,11 @@ import os
 import requests
 import asyncio
 import logging
+import random
 from threading import Thread
 from wsgiref.simple_server import make_server
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
 # Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -21,6 +22,16 @@ def simple_wsgi_app(environ, start_response):
 
 # Адрес Jetton-контракта $TAC
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
+
+# Счетчик сообщений для каждого чата
+message_counters = {}
+
+# Список рабочих URL-адресов GIF
+GIF_URLS = [
+    "https://media.giphy.com/media/l0Iyl55kTeh71nTWw/giphy.mp4",  # Кот
+    "https://media.giphy.com/media/3o7btPCcdN8n5An5mw/giphy.mp4",  # Танцующий персонаж
+    "https://media.giphy.com/media/l0MYt5jJnpJYBTwqs/giphy.mp4",  # Клоун
+]
 
 # Функция для получения цены из TonAPI
 def get_tac_price():
@@ -56,6 +67,25 @@ def get_tac_price():
         error_msg = f"Ошибка в get_tac_price: {str(e)}"
         logger.error(error_msg)
         return error_msg
+
+# Обработчик всех сообщений для подсчета и отправки GIF
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.message.chat_id
+    # Увеличиваем счетчик сообщений для данного чата
+    message_counters[chat_id] = message_counters.get(chat_id, 0) + 1
+    logger.info(f"Message count for chat {chat_id}: {message_counters[chat_id]}")
+    
+    # Проверяем, достиг ли счетчик 10
+    if message_counters[chat_id] >= 10:
+        # Выбираем случайную GIF
+        gif_url = random.choice(GIF_URLS)
+        try:
+            await context.bot.send_animation(chat_id=chat_id, animation=gif_url)
+            logger.info(f"Sent GIF to chat {chat_id}: {gif_url}")
+            # Сбрасываем счетчик
+            message_counters[chat_id] = 0
+        except Exception as e:
+            logger.error(f"Ошибка при отправке GIF в чат {chat_id}: {str(e)}")
 
 # Команда /start с кнопками
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -97,6 +127,13 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Sending auto-update to {chat_id}: {price_message}")
     try:
         await context.bot.send_message(chat_id=int(chat_id), text=price_message, parse_mode="HTML")
+        # Увеличиваем счетчик сообщений для канала
+        message_counters[chat_id] = message_counters.get(chat_id, 0) + 1
+        if message_counters[chat_id] >= 10:
+            gif_url = random.choice(GIF_URLS)
+            await context.bot.send_animation(chat_id=int(chat_id), animation=gif_url)
+            logger.info(f"Sent GIF to channel {chat_id}: {gif_url}")
+            message_counters[chat_id] = 0
     except Exception as e:
         logger.error(f"Ошибка в send_price_update: {str(e)}")
 
@@ -114,6 +151,7 @@ async def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("price", price))
     application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.ALL, handle_message))  # Новый обработчик сообщений
     # Проверяем, что job_queue доступен
     if application.job_queue is None:
         logger.error("Error: job_queue is None")
