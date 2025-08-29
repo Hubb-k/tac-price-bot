@@ -8,7 +8,7 @@ from threading import Thread
 from wsgiref.simple_server import make_server
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
-from datetime import datetime, timedelta  # Добавлено для работы с временем
+from datetime import datetime, timedelta
 
 # Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -75,13 +75,13 @@ def get_tac_price():
 
 # Функция для сбора цен каждые 10 минут
 async def collect_price_data(context: ContextTypes.DEFAULT_TYPE) -> None:
+    global price_history  # Переносим global в начало функции
     price_data = get_tac_price()
     if isinstance(price_data, dict) and price_data['usd'] is not None:
         timestamp = datetime.now()
         price_history.append({'timestamp': timestamp, 'usd': price_data['usd']})
         # Удаляем данные старше 4 часов
         four_hours_ago = timestamp - timedelta(hours=4)
-        global price_history
         price_history = [entry for entry in price_history if entry['timestamp'] > four_hours_ago]
         logger.info(f"Collected price: ${price_data['usd']:.4f}, history size: {len(price_history)}")
     else:
