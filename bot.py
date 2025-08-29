@@ -43,7 +43,11 @@ def get_tac_price():
             ton_price = rates.get('TON', 'N/A')
             usd_str = f"{float(usd_price):.4f}" if usd_price != 'N/A' else 'N/A'
             ton_str = f"{float(ton_price):.4f}" if ton_price != 'N/A' else 'N/A'
-            return f"$TAC Price:\nUSD: ${usd_str}\nTON: {ton_str} TON"
+            return (
+                f"<b>🌸 $TAC Price:</b>\n"  # Розовый (имитация эмодзи 🌸)
+                f"<b>💚 USD: ${usd_str}</b>\n"  # Зеленый (имитация эмодзи 💚)
+                f"<b>🔵 TON: {ton_str} TON</b>"  # Синий (имитация эмодзи 🔵)
+            )
         else:
             error_msg = f"Ошибка TonAPI: Код {response.status_code}"
             logger.error(error_msg)
@@ -71,7 +75,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Sending price to {update.message.chat_id}: {price_message}")
     keyboard = [[InlineKeyboardButton("Обновить цену", callback_data="price")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(price_message, reply_markup=reply_markup)
+    await update.message.reply_text(price_message, reply_markup=reply_markup, parse_mode="HTML")
 
 # Обработчик кнопок
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -82,7 +86,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.info(f"Sending price to {query.message.chat_id}: {price_message}")
         keyboard = [[InlineKeyboardButton("Обновить цену", callback_data="price")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.message.reply_text(price_message, reply_markup=reply_markup)
+        await query.message.reply_text(price_message, reply_markup=reply_markup, parse_mode="HTML")
     elif query.data == "help":
         await query.message.reply_text("Я бот для отслеживания цены $TAC. Используй /price или кнопку 'Получить цену'.")
 
@@ -92,7 +96,7 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = "-1002954606074"  # Твой chat_id канала
     logger.info(f"Sending auto-update to {chat_id}: {price_message}")
     try:
-        await context.bot.send_message(chat_id=int(chat_id), text=price_message)
+        await context.bot.send_message(chat_id=int(chat_id), text=price_message, parse_mode="HTML")
     except Exception as e:
         logger.error(f"Ошибка в send_price_update: {str(e)}")
 
