@@ -67,8 +67,8 @@ def get_tac_price():
                 'usd_str': usd_str,
                 'ton_str': ton_str,
                 'message': (
-                    f"<b>🌸 $TAC Price:</b>\n"
-                    f"<b>💚 USD: ${usd_str}</b>\n"
+                    f"<b>🟣 $TAC Price:</b>\n"
+                    f"<b>🟢 USD: ${usd_str}</b>\n"
                     f"<b>🔵 TON: {ton_str} TON</b>"
                 )
             }
