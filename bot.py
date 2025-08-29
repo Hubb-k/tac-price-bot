@@ -28,9 +28,9 @@ message_counters = {}
 
 # Список рабочих URL-адресов GIF
 GIF_URLS = [
-    "https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUybWZuczh5b285dmhhYTNzZjZzZXVvb3M1NnYydW92MnJmMjZnaWN1cyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/83JLhFcYedwQBR0oW5/giphy.gif",  # туземун
-    "https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyYTZodGp6YWQ0eHJpZWtnNjBkNW51b2FhaHE5d3Q1MHB3cGJuOHB6eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/nZW5fIzaIJVXddVla7/giphy.gif",  # Танцующий кот
-    https://giphy.com/gifs/subpoprecords-breakfast-clowns-tv-priest-KNeeNrAQQqt0v8jvf9",  # Клоун
+    "https://media.giphy.com/media/83JLhFcYedwQBR0oW5/giphy.mp4",  # туземун
+    "https://media.giphy.com/media/nZW5fIzaIJVXddVla7/giphy.mp4",  # Танцующий кот
+    "https://media.giphy.com/media/KNeeNrAQQqt0v8jvf9/giphy.mp4",  # Клоун
 ]
 
 # Функция для получения цены из TonAPI
