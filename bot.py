@@ -88,6 +88,27 @@ def get_tac_price():
         logger.error(error_msg)
         return error_msg
 
+# Функция для получения 24-часового объема торгов из CoinGecko
+def get_tac_volume():
+    try:
+        url = "https://api.coingecko.com/api/v3/coins/tac/tickers"
+        response = requests.get(url, timeout=10)
+        logger.info(f"CoinGecko response status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            if 'tickers' in data and data['tickers']:
+                volume_usd = float(data['tickers'][0]['volume'])  # 24h объем в USD
+                return volume_usd
+            else:
+                logger.error(f"No tickers found in CoinGecko response: {data}")
+                return None
+        else:
+            logger.error(f"CoinGecko error: Code {response.status_code}, Response: {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error in get_tac_volume: {str(e)}")
+        return None
+
 # Функция для сбора цен каждые 15 минут
 async def collect_price_data(context: ContextTypes.DEFAULT_TYPE) -> None:
     global price_history
@@ -111,7 +132,8 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE) -> None:
         await context.bot.send_message(chat_id=int(chat_id), text="Error: Unable to fetch data for report", parse_mode="HTML")
         return
 
-    volume = "N/A"
+    volume = get_tac_volume()
+    volume_str = f"{volume:,.2f}" if volume is not None else "N/A"
     four_hours_ago = datetime.now() - timedelta(hours=4)
     past_prices = [entry['usd'] for entry in price_history if entry['timestamp'] > four_hours_ago]
     if past_prices and len(past_prices) > 1:
@@ -129,10 +151,10 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     report_message = (
         f"<b>4-Hour Report:</b>\n"
-        f"<b>Volume:</b> {volume}\n"
-        f"<b>Price Change:</b> {price_change_str}\n"
-        f"<b>Maximum Price:</b> {max_price_str}\n"
-        f"<b>Minimum Price:</b> {min_price_str}"
+        f"<b>Volume (24h): ${volume_str}</b>\n"
+        f"<b>Price Change: {price_change_str}</b>\n"
+        f"<b>Maximum Price: {max_price_str}</b>\n"
+        f"<b>Minimum Price: {min_price_str}</b>"
     )
 
     try:
