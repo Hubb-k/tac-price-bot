@@ -188,7 +188,18 @@ async def main():
         first=(datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).timestamp() - datetime.now().timestamp()
     )  # Объем каждый час MSK
 
-    await application.run_polling()
+    # Запуск в существующем цикле событий
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    else:
+        await application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        asyncio.create_task(main())
+    else:
+        asyncio.run(main())
