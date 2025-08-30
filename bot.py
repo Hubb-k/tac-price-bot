@@ -30,6 +30,9 @@ message_counters = {}
 # Хранилище для истории цен (в USD)
 price_history = []
 
+# Кэш последнего успешного объема
+last_known_volume = None
+
 # Список рабочих URL-адресов GIF
 GIF_URLS = [
     "https://media.giphy.com/media/83JLhFcYedwQBR0oW5/giphy.mp4",  # Moon
@@ -90,6 +93,7 @@ def get_tac_price():
 
 # Функция для получения 24-часового объема торгов из CoinGecko
 def get_tac_volume():
+    global last_known_volume
     try:
         url = "https://api.coingecko.com/api/v3/coins/tac/tickers"
         response = requests.get(url, timeout=10)
@@ -98,16 +102,40 @@ def get_tac_volume():
             data = response.json()
             if 'tickers' in data and data['tickers']:
                 volume_usd = float(data['tickers'][0]['volume'])  # 24h объем в USD
+                last_known_volume = volume_usd
                 return volume_usd
             else:
                 logger.error(f"No tickers found in CoinGecko response: {data}")
-                return None
+                return last_known_volume
         else:
             logger.error(f"CoinGecko error: Code {response.status_code}, Response: {response.text}")
-            return None
+            return last_known_volume
     except Exception as e:
         logger.error(f"Error in get_tac_volume: {str(e)}")
-        return None
+        return last_known_volume
+
+# Функция для отправки объема каждый час в 00 минут
+async def send_volume_update(context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = "-1002954606074"
+    volume = get_tac_volume()
+    volume_str = f"{volume:,.2f}" if volume is not None else "N/A"
+    message = f"<b>Volume (24h): ${volume_str}</b>"
+    try:
+        await context.bot.send_message(chat_id=int(chat_id), text=message, parse_mode="HTML")
+        logger.info(f"Sent volume update to {chat_id}: {message}")
+        
+        global message_counters
+        message_counters[chat_id] = message_counters.get(chat_id, 0) + 1
+        if message_counters[chat_id] >= 10:
+            gif_url = random.choice(GIF_URLS)
+            try:
+                await context.bot.send_animation(chat_id=int(chat_id), animation=gif_url)
+                logger.info(f"Sent GIF to channel {chat_id}: {gif_url}")
+                message_counters[chat_id] = 0
+            except Exception as e:
+                logger.error(f"Error sending GIF to channel {chat_id}: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error sending volume update to {chat_id}: {str(e)}")
 
 # Функция для сбора цен каждые 15 минут
 async def collect_price_data(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -132,8 +160,6 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE) -> None:
         await context.bot.send_message(chat_id=int(chat_id), text="Error: Unable to fetch data for report", parse_mode="HTML")
         return
 
-    volume = get_tac_volume()
-    volume_str = f"{volume:,.2f}" if volume is not None else "N/A"
     four_hours_ago = datetime.now() - timedelta(hours=4)
     past_prices = [entry['usd'] for entry in price_history if entry['timestamp'] > four_hours_ago]
     if past_prices and len(past_prices) > 1:
@@ -151,7 +177,6 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     report_message = (
         f"<b>4-Hour Report:</b>\n"
-        f"<b>Volume (24h): ${volume_str}</b>\n"
         f"<b>Price Change: {price_change_str}</b>\n"
         f"<b>Maximum Price: {max_price_str}</b>\n"
         f"<b>Minimum Price: {min_price_str}</b>"
@@ -285,6 +310,15 @@ def run_wsgi():
     server = make_server('0.0.0.0', port, simple_wsgi_app)
     server.serve_forever()
 
+# Функция для вычисления времени первого запуска (в MSK)
+def calculate_first_run_time(interval_hours, timezone_offset_hours):
+    now = datetime.now()
+    utc_now = now - timedelta(hours=timezone_offset_hours)  # MSK = UTC+3
+    next_run = utc_now.replace(minute=0, second=0, microsecond=0)
+    while next_run <= utc_now:
+        next_run += timedelta(hours=interval_hours)
+    return (next_run - utc_now).total_seconds()
+
 async def main():
     logger.info(f"Starting bot with Python {sys.version} and python-telegram-bot 21.4")
     token = "7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E"
@@ -304,9 +338,24 @@ async def main():
     if application.job_queue is None:
         logger.error("Error: job_queue is None")
         return
-    application.job_queue.run_repeating(collect_price_data, interval=900, first=0)  # Сбор цен каждые 15 минут
-    application.job_queue.run_repeating(send_price_update, interval=300, first=0)  # Цены каждые 5 минут
-    application.job_queue.run_repeating(send_four_hour_report, interval=14400, first=0)  # Отчет каждые 4 часа
+    
+    # Сбор цен каждые 15 минут
+    application.job_queue.run_repeating(collect_price_data, interval=900, first=0)
+    # Цены каждые 5 минут
+    application.job_queue.run_repeating(send_price_update, interval=300, first=0)
+    # Отчет каждые 4 часа (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 MSK)
+    application.job_queue.run_repeating(
+        send_four_hour_report,
+        interval=14400,
+        first=calculate_first_run_time(4, 3)  # MSK = UTC+3
+    )
+    # Объем каждый час в 00 минут
+    application.job_queue.run_repeating(
+        send_volume_update,
+        interval=3600,
+        first=calculate_first_run_time(1, 3)  # MSK = UTC+3
+    )
+    
     wsgi_thread = Thread(target=run_wsgi, daemon=True)
     wsgi_thread.start()
     try:
