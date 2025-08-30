@@ -63,6 +63,18 @@ def get_tac_volume():
     except:
         return None
 
+# Удаление webhook перед запуском
+async def delete_webhook(token: str):
+    try:
+        response = requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
+        data = response.json()
+        if data.get("ok"):
+            print("Webhook deleted successfully")
+        else:
+            print(f"Failed to delete webhook: {data}")
+    except Exception as e:
+        print(f"Error deleting webhook: {str(e)}")
+
 # Сбор цен каждые 15 минут
 async def collect_price_data(context: ContextTypes.DEFAULT_TYPE) -> None:
     global price_history
@@ -168,6 +180,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Основная функция
 async def main():
     token = "7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E"
+    # Удаляем webhook перед запуском
+    await delete_webhook(token)
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("price", price))
