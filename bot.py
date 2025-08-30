@@ -7,12 +7,13 @@ from datetime import datetime, timedelta
 import random
 import logging
 import pytz
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
-POOL_ADDRESS = "EQBp8y9u4gYmVLCiG4CVZw9Ir3IDV5a9xoAxG3Du7xrwFFmP"
+POOL_ADDRESS = "EQBp8y9u4gYmVLCiG4CVZw9Ir3IDV5a9xoAxG3Du7xrwFFmP"  # Проверьте актуальность
 message_counters = {}
 price_history = []
 GIF_URLS = [
@@ -52,10 +53,13 @@ def get_tac_price():
         return "Error: Unable to fetch price"
 
 def get_tac_volume():
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
     try:
         url = f"https://api.dexscreener.com/latest/dex/pairs/ton/{POOL_ADDRESS}"
         logging.info(f"Запрос к DexScreener API: {url}")
-        response = requests.get(url, timeout=10)
+        response = session.get(url, timeout=15)
         response.raise_for_status()
         data = response.json()
         logging.info(f"Ответ API: {data}")
@@ -92,8 +96,10 @@ async def collect_price_data(context: ContextTypes.DEFAULT_TYPE) -> None:
     price_data = get_tac_price()
     if isinstance(price_data, dict) and price_data['usd'] is not None:
         price_history.append({'timestamp': get_msk_time(), 'usd': price_data['usd']})
+        logging.info(f"Добавлена цена: ${price_data['usd']:.4f}, price_history size: {len(price_history)}")
         price_history = [entry for entry in price_history if entry['timestamp'] > get_msk_time() - timedelta(hours=4)]
-        logging.info(f"Цена сохранена: ${price_data['usd']:.4f}")
+    else:
+        logging.warning(f"Не удалось добавить цену: {price_data}")
 
 async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = "-1002954606074"
@@ -106,6 +112,7 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE) -> None:
         message_counters[chat_id] = 0
 
 async def send_volume_update(context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.info("Запуск send_volume_update")
     chat_id = "-1002954606074"
     volume = get_tac_volume()
     if volume is not None:
@@ -128,6 +135,7 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     past_prices = [entry['usd'] for entry in price_history if entry['timestamp'] > get_msk_time() - timedelta(hours=4)]
+    logging.info(f"past_prices: {past_prices}, price_history size: {len(price_history)}")
     if past_prices and len(past_prices) > 1:
         oldest_price = past_prices[0]
         current_price = price_data['usd']
