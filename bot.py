@@ -1,7 +1,6 @@
 import os
 import requests
 import asyncio
-import logging
 import random
 from threading import Thread
 from wsgiref.simple_server import make_server
@@ -11,15 +10,15 @@ import pytz
 try:
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
-except ImportError as e:
-    logging.error(f"Import error: {e}")
+except ImportError:
     raise
 
-# Настройка логирования (минимальное)
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Минимальное логирование
+import logging
+logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# WSGI-эндпоинт для Render и UptimeRobot
+# WSGI для Render и UptimeRobot
 def simple_wsgi_app(environ, start_response):
     status = '200 OK'
     headers = [('Content-type', 'text/plain; charset=utf-8')]
@@ -29,7 +28,7 @@ def simple_wsgi_app(environ, start_response):
 # Конфигурация
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
 CHAT_ID = "-1002954606074"
-ADMIN_CHAT_ID = "224780379"  # Замените на ваш chat_id
+ADMIN_CHAT_ID = "YOUR_ADMIN_CHAT_ID"  # Замените на ваш chat_id
 message_counters = {}
 price_history = []
 MAX_HISTORY_SIZE = 16
@@ -67,12 +66,9 @@ def get_tac_price():
                     f"<b>🔵 TON: {ton_str} TON</b>"
                 )
             }
-        elif response.status_code == 429:
-            return "Error: TonAPI rate limit exceeded"
-        else:
-            return f"Error: TonAPI returned {response.status_code}"
-    except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: TonAPI returned {response.status_code}"
+    except Exception:
+        return "Error: Failed to fetch price"
 
 def get_ton_usd_price():
     headers = {"Authorization": f"Bearer {os.getenv('TONAPI_KEY')}"}
@@ -87,6 +83,8 @@ def get_tac_volume():
     session = requests.Session()
     retries = Retry(total=2, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     session.mount('https://', HTTPAdapter(max_retries=retries))
+    
+    # Попробовать STON.fi
     try:
         since = (datetime.utcnow() - timedelta(days=1)).isoformat(timespec='seconds')
         until = datetime.utcnow().isoformat(timespec='seconds')
@@ -101,6 +99,18 @@ def get_tac_volume():
                 if ton_usd:
                     return volume_ton * ton_usd
                 return None
+    except Exception:
+        pass
+    
+    # Попробовать DeDust
+    try:
+        response = session.get("https://api.dedust.io/v2/pools", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        for pool in data:
+            if (pool.get('address') == JETTON_ADDRESS or 
+                pool.get('assets', [{}])[0].get('address') == JETTON_ADDRESS) and pool.get('quote_asset') == 'TON':
+                return float(pool.get('volume_24h', 0))
         return None
     except Exception:
         return None
@@ -134,7 +144,7 @@ async def send_volume_update(context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_animation(chat_id=CHAT_ID, animation=random.choice(GIF_URLS))
             message_counters[CHAT_ID] = 0
         if not volume:
-            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text="Error: Failed to fetch volume from STON.fi", parse_mode="HTML")
+            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text="Error: Failed to fetch volume", parse_mode="HTML")
     except Exception:
         pass
 
@@ -185,7 +195,7 @@ async def check_and_delete_webhook(token: str):
             requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook", timeout=5)
         return True
     except Exception:
-        return True  # Считаем, что webhook не мешает, если запрос не удался
+        return True
 
 def run_wsgi():
     port = int(os.getenv("PORT", 8080))
@@ -202,7 +212,7 @@ async def main():
     
     application = Application.builder().token(token).build()
     if application.job_queue:
-        application.job_queue.run_repeating(collect_price_data, interval=900, first=10)
+        application.job_queue.run_repeating(collect_price_data, interval=1800, first=10)  # 30 минут для экономии памяти
         application.job_queue.run_repeating(send_price_update, interval=300, first=10)
         application.job_queue.run_repeating(send_volume_update, interval=3600, first=10)
         application.job_queue.run_repeating(send_four_hour_report, interval=14400, first=10)
