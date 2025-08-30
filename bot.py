@@ -189,17 +189,11 @@ async def main():
     )  # Объем каждый час MSK
 
     # Запуск в существующем цикле событий
-    loop = asyncio.get_event_loop()
-    if loop.is_running():
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-    else:
-        await application.run_polling()
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    await asyncio.Event().wait()  # Держим приложение активным
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    if loop.is_running():
-        asyncio.create_task(main())
-    else:
-        asyncio.run(main())
+    loop.run_until_complete(main())
