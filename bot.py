@@ -9,6 +9,7 @@ from wsgiref.simple_server import make_server
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 from datetime import datetime, timedelta
+from time import sleep
 
 # Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -21,8 +22,9 @@ def simple_wsgi_app(environ, start_response):
     start_response(status, headers)
     return [b"Bot is running"]
 
-# Адрес Jetton-контракта $TAC
+# Адрес Jetton-контракта $TAC и пула на STON.fi
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
+POOL_ADDRESS = "EQBp8y9u4gYmVLCiG4CVZw9Ir3IDV5a9xoAxG3Du7xrwFFmP"
 
 # Счетчик сообщений для каждого чата
 message_counters = {}
@@ -91,28 +93,34 @@ def get_tac_price():
         logger.error(error_msg)
         return error_msg
 
-# Функция для получения 24-часового объема торгов из CoinGecko
+# Функция для получения 24-часового объема торгов из STON.fi
 def get_tac_volume():
     global last_known_volume
-    try:
-        url = "https://api.coingecko.com/api/v3/coins/tac/tickers"
-        response = requests.get(url, timeout=10)
-        logger.info(f"CoinGecko response status: {response.status_code}")
-        if response.status_code == 200:
-            data = response.json()
-            if 'tickers' in data and data['tickers']:
-                volume_usd = float(data['tickers'][0]['volume'])  # 24h объем в USD
+    for attempt in range(3):
+        try:
+            url = f"https://api.ston.fi/v1/pools/{POOL_ADDRESS}"
+            response = requests.get(url, timeout=10)
+            logger.info(f"STON.fi response status (attempt {attempt + 1}): {response.status_code}")
+            logger.info(f"STON.fi response: {response.text}")
+            if response.status_code == 200:
+                data = response.json()
+                volume_usd = float(data.get('volume_24h', 0))  # 24h объем в USD
                 last_known_volume = volume_usd
+                logger.info(f"Got volume from STON.fi: ${volume_usd:,.2f}")
                 return volume_usd
+            elif response.status_code == 429:
+                logger.warning(f"STON.fi rate limit exceeded, retrying in {2 ** attempt} seconds")
+                sleep(2 ** attempt)  # Экспоненциальная задержка
+                continue
             else:
-                logger.error(f"No tickers found in CoinGecko response: {data}")
-                return last_known_volume
-        else:
-            logger.error(f"CoinGecko error: Code {response.status_code}, Response: {response.text}")
-            return last_known_volume
-    except Exception as e:
-        logger.error(f"Error in get_tac_volume: {str(e)}")
-        return last_known_volume
+                logger.error(f"STON.fi error: Code {response.status_code}, Response: {response.text}")
+                break
+        except Exception as e:
+            logger.error(f"Error in get_tac_volume (STON.fi, attempt {attempt + 1}): {str(e)}")
+            sleep(2 ** attempt)
+    
+    logger.info(f"Returning last known volume: ${last_known_volume:,.2f if last_known_volume else 'None'}")
+    return last_known_volume
 
 # Функция для отправки объема каждый час в 00 минут
 async def send_volume_update(context: ContextTypes.DEFAULT_TYPE) -> None:
