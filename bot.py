@@ -7,11 +7,6 @@ from wsgiref.simple_server import make_server
 from telegram.ext import Application, ContextTypes
 from datetime import datetime, timedelta
 import pytz
-try:
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
-except ImportError:
-    raise
 
 # Минимальное логирование
 import logging
@@ -28,7 +23,7 @@ def simple_wsgi_app(environ, start_response):
 # Конфигурация
 JETTON_ADDRESS = "EQBE_gBrU3mPI9hHjlJoR_kYyrhQgyCFD6EUWfa42W8T7EBP"
 CHAT_ID = "-1002954606074"
-ADMIN_CHAT_ID = "YOUR_ADMIN_CHAT_ID"  # Замените на ваш chat_id
+ADMIN_CHAT_ID = "224780379"
 message_counters = {}
 price_history = []
 MAX_HISTORY_SIZE = 16
@@ -68,52 +63,11 @@ def get_tac_price():
             }
         return f"Error: TonAPI returned {response.status_code}"
     except Exception:
+        try:
+            requests.get(f"https://api.telegram.org/bot7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E/sendMessage?chat_id={ADMIN_CHAT_ID}&text=Error:%20Failed%20to%20fetch%20price")
+        except Exception:
+            pass
         return "Error: Failed to fetch price"
-
-def get_ton_usd_price():
-    headers = {"Authorization": f"Bearer {os.getenv('TONAPI_KEY')}"}
-    try:
-        response = requests.get("https://tonapi.io/v2/rates?tokens=ton&currencies=usd", headers=headers, timeout=10)
-        response.raise_for_status()
-        return float(response.json()['rates']['TON']['prices']['USD'])
-    except Exception:
-        return None
-
-def get_tac_volume():
-    session = requests.Session()
-    retries = Retry(total=2, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-    session.mount('https://', HTTPAdapter(max_retries=retries))
-    
-    # Попробовать STON.fi
-    try:
-        since = (datetime.utcnow() - timedelta(days=1)).isoformat(timespec='seconds')
-        until = datetime.utcnow().isoformat(timespec='seconds')
-        response = session.get("https://api.ston.fi/v1/stats/pool", params={'since': since, 'until': until}, timeout=10)
-        response.raise_for_status()
-        stats = response.json().get('stats', [])
-        for jetton in stats:
-            if (jetton.get('base_address') == JETTON_ADDRESS or 
-                jetton.get('quote_address') == JETTON_ADDRESS) and jetton.get('quote_symbol') == 'TON':
-                volume_ton = float(jetton.get('quote_volume', 0))
-                ton_usd = get_ton_usd_price()
-                if ton_usd:
-                    return volume_ton * ton_usd
-                return None
-    except Exception:
-        pass
-    
-    # Попробовать DeDust
-    try:
-        response = session.get("https://api.dedust.io/v2/pools", timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        for pool in data:
-            if (pool.get('address') == JETTON_ADDRESS or 
-                pool.get('assets', [{}])[0].get('address') == JETTON_ADDRESS) and pool.get('quote_asset') == 'TON':
-                return float(pool.get('volume_24h', 0))
-        return None
-    except Exception:
-        return None
 
 async def collect_price_data(context: ContextTypes.DEFAULT_TYPE):
     price_data = get_tac_price()
@@ -134,23 +88,8 @@ async def send_price_update(context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
-async def send_volume_update(context: ContextTypes.DEFAULT_TYPE):
-    volume = get_tac_volume()
-    message = f"<b>🟣 Volume (24h): ${volume:,.2f}</b> (MSK: {get_msk_time().strftime('%H:%M')})" if volume else f"<b>🟣 Volume (24h): N/A</b> (MSK: {get_msk_time().strftime('%H:%M')})"
-    try:
-        await context.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="HTML")
-        message_counters[CHAT_ID] = message_counters.get(CHAT_ID, 0) + 1
-        if message_counters[CHAT_ID] >= 10:
-            await context.bot.send_animation(chat_id=CHAT_ID, animation=random.choice(GIF_URLS))
-            message_counters[CHAT_ID] = 0
-        if not volume:
-            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text="Error: Failed to fetch volume", parse_mode="HTML")
-    except Exception:
-        pass
-
 async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE):
     price_data = get_tac_price()
-    volume = get_tac_volume()
     if not isinstance(price_data, dict) or price_data['usd'] is None:
         try:
             await context.bot.send_message(chat_id=CHAT_ID, text="Error: Unable to fetch data for report", parse_mode="HTML")
@@ -158,7 +97,6 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE):
             pass
         return
 
-    volume_str = f"${volume:,.2f}" if volume else "N/A"
     four_hours_ago = datetime.now() - timedelta(hours=4)
     past_prices = [entry['usd'] for entry in price_history if entry['timestamp'] > four_hours_ago]
     price_change_str = "N/A"
@@ -173,9 +111,8 @@ async def send_four_hour_report(context: ContextTypes.DEFAULT_TYPE):
     
     report_message = (
         f"<b>🟣 4-Hour Report:</b>\n"
-        f"<b>🟢 Volume:</b> {volume_str}\n"
-        f"<b>🔵 Price Change:</b> {price_change_str}\n"
-        f"<b>Maximum Price:</b> {max_price_str}\n"
+        f"<b>🟢 Price Change:</b> {price_change_str}\n"
+        f"<b>🔵 Maximum Price:</b> {max_price_str}\n"
         f"<b>Minimum Price:</b> {min_price_str}"
     )
     
@@ -205,6 +142,10 @@ def run_wsgi():
 async def main():
     token = "7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E"
     if not os.getenv("TONAPI_KEY"):
+        try:
+            requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={ADMIN_CHAT_ID}&text=Error:%20TONAPI_KEY%20not%20set")
+        except Exception:
+            pass
         return
     
     if not await check_and_delete_webhook(token):
@@ -212,9 +153,8 @@ async def main():
     
     application = Application.builder().token(token).build()
     if application.job_queue:
-        application.job_queue.run_repeating(collect_price_data, interval=1800, first=10)  # 30 минут для экономии памяти
+        application.job_queue.run_repeating(collect_price_data, interval=1800, first=10)  # 30 минут
         application.job_queue.run_repeating(send_price_update, interval=300, first=10)
-        application.job_queue.run_repeating(send_volume_update, interval=3600, first=10)
         application.job_queue.run_repeating(send_four_hour_report, interval=14400, first=10)
     
     wsgi_thread = Thread(target=run_wsgi, daemon=True)
