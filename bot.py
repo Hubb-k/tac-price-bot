@@ -114,4 +114,50 @@ async def main():
     if not token:
         try:
             import requests
-            requests.get(f"https://api.telegram.org/bot737
+            requests.get(f"https://api.telegram.org/bot7376596629:AAEWq1wQY03ColQcciuXxa7FmCkxQ4MUs7E/sendMessage?chat_id={ADMIN_CHAT_ID}&text=Error:%20BOT_TOKEN%20not%20set")
+            logger.error("BOT_TOKEN not set")
+        except Exception as e:
+            logger.error("Failed to send BOT_TOKEN error: %s", e)
+        return
+    if not os.getenv("TONAPI_KEY"):
+        try:
+            import requests
+            requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={ADMIN_CHAT_ID}&text=Error:%20TONAPI_KEY%20not%20set")
+            logger.error("TONAPI_KEY not set")
+        except Exception as e:
+            logger.error("Failed to send TONAPI_KEY error: %s", e)
+        return
+    
+    logger.info("Starting bot with token: %s", token[:10] + "...")
+    if not await check_and_delete_webhook(token):
+        logger.error("Failed to initialize due to webhook issue")
+        return
+    
+    application = Application.builder().token(token).build()
+    if application.job_queue:
+        application.job_queue.run_repeating(collect_price_data, interval=1800, first=10)  # 30 минут
+        application.job_queue.run_repeating(send_price_update, interval=300, first=10)  # 5 минут
+        application.job_queue.run_repeating(send_four_hour_report, interval=14400, first=10)  # 4 часа
+        logger.info("Scheduled jobs: collect_price_data, send_price_update, send_four_hour_report")
+    
+    wsgi_thread = Thread(target=run_wsgi, daemon=True)
+    wsgi_thread.start()
+    
+    try:
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=None, drop_pending_updates=True)
+        logger.info("Bot polling started")
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        logger.info("Bot polling cancelled")
+    except Exception as e:
+        logger.error("Bot crashed: %s", e)
+    finally:
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        logger.info("Bot shutdown complete")
+
+if __name__ == "__main__":
+    asyncio.run(main())
